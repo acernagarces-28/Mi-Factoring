@@ -1,0 +1,1456 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Registro de factoring</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<style>
+  :root {
+    --ink: #2E2A4A;
+    --paper: #F5F3FA;
+    --card: #FFFFFF;
+    --line: #DDD6EC;
+    --muted: #7A7394;
+    --gold: #8B7CC7;
+    --gold-soft: #E8E3F7;
+    --teal: #C77B9E;
+    --teal-soft: #F5E3EC;
+    --danger: #C1495A;
+    --danger-soft: #F7E1E5;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'Poppins', sans-serif;
+    padding: 40px 20px 80px;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; }
+  h1 {
+    font-family: 'Fraunces', serif;
+    font-weight: 500;
+    font-size: 30px;
+    margin: 0 0 4px;
+    letter-spacing: -0.01em;
+  }
+  .sub { color: var(--muted); font-size: 14px; margin: 0 0 4px; }
+  .storage-note { color: var(--muted); font-size: 12px; margin: 0 0 32px; font-style: italic; }
+
+  .summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+    margin-bottom: 32px;
+  }
+  .summary .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 16px 18px;
+  }
+  .summary .card.alert { border-color: var(--danger); background: var(--danger-soft); }
+  .summary .label { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  .summary .value { font-family: 'Fraunces', serif; font-size: 21px; font-weight: 500; }
+  .summary .value.gold { color: var(--gold); }
+  .summary .value.teal { color: var(--teal); }
+  .summary .value.danger { color: var(--danger); }
+
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 22px 24px;
+    margin-bottom: 28px;
+  }
+  .panel h2 {
+    font-family: 'Fraunces', serif;
+    font-weight: 500;
+    font-size: 17px;
+    margin: 0 0 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .panel h2 .cancel-edit {
+    font-family: 'Poppins', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--muted);
+    cursor: pointer;
+    text-decoration: underline;
+  }
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px 16px;
+  }
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .field.full { grid-column: 1 / -1; }
+  .field label { font-size: 12px; color: var(--muted); }
+  .field input {
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    padding: 9px 10px;
+    font-size: 14px;
+    font-family: 'Poppins', sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    width: 100%;
+  }
+  .field input:focus { outline: none; border-color: var(--teal); }
+  .field .hint { font-size: 11px; color: var(--muted); }
+
+  button.primary {
+    margin-top: 16px;
+    background: var(--ink);
+    color: var(--paper);
+    border: none;
+    border-radius: 7px;
+    padding: 11px 18px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: 'Poppins', sans-serif;
+  }
+  button.primary:hover { opacity: 0.9; }
+
+  .entry {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 16px 18px;
+    margin-bottom: 12px;
+    background: var(--card);
+  }
+  .entry.vencido { border-color: var(--danger); }
+  .entry-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .entry-name { font-family: 'Fraunces', serif; font-size: 16px; font-weight: 500; }
+  .entry-meta { font-size: 12px; color: var(--muted); margin-top: 3px; }
+  .entry-meta.danger { color: var(--danger); }
+  .entry-right { text-align: right; flex-shrink: 0; }
+  .entry-amt { font-family: 'Fraunces', serif; font-size: 16px; }
+  .entry-gain { font-size: 12px; margin-top: 2px; }
+  .entry-gain.est { color: var(--gold); }
+  .entry-gain.real { color: var(--teal); }
+  .entry-ir { font-size: 11px; color: var(--muted); }
+
+  .badge {
+    font-size: 11px;
+    padding: 3px 9px;
+    border-radius: 20px;
+    font-weight: 500;
+    white-space: nowrap;
+    display: inline-block;
+    margin-top: 6px;
+  }
+  .badge.pending { background: var(--gold-soft); color: var(--gold); }
+  .badge.collected { background: var(--teal-soft); color: var(--teal); }
+  .badge.overdue { background: var(--danger-soft); color: var(--danger); }
+
+  .actions {
+    display: flex;
+    gap: 14px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+  }
+  .action-btn {
+    font-size: 12px;
+    border: none;
+    background: none;
+    color: var(--teal);
+    cursor: pointer;
+    padding: 0;
+    font-family: 'Poppins', sans-serif;
+    font-weight: 500;
+  }
+  .action-btn.del { color: var(--danger); }
+  .action-btn.muted { color: var(--muted); }
+
+  .header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+  button.secondary {
+    background: var(--card);
+    color: var(--ink);
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    padding: 9px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: 'Poppins', sans-serif;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  button.secondary:hover { border-color: var(--teal); color: var(--teal); }
+  button.secondary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .tab-bar-wrap { margin-bottom: 28px; }
+  .tab-bar {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .tab-btn {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    padding: 7px 14px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--muted);
+    cursor: pointer;
+    font-family: 'Poppins', sans-serif;
+    white-space: nowrap;
+  }
+  .tab-btn.active { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  .tab-del {
+    margin-left: 8px;
+    opacity: 0.6;
+    cursor: pointer;
+  }
+  .tab-del:hover { opacity: 1; }
+  .tab-add-btn {
+    background: none;
+    border: 1px dashed var(--line);
+    border-radius: 20px;
+    width: 30px;
+    height: 30px;
+    font-size: 16px;
+    color: var(--muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+  }
+  .tab-add-btn:hover { border-color: var(--teal); color: var(--teal); }
+  .tab-add-form {
+    margin-top: 12px;
+    padding: 14px 16px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .tab-add-form .field { flex: 1; min-width: 140px; }
+  .tab-add-form select {
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    padding: 9px 10px;
+    font-size: 14px;
+    font-family: 'Poppins', sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    width: 100%;
+  }
+  .tab-add-form button {
+    border: none;
+    border-radius: 7px;
+    padding: 9px 14px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: 'Poppins', sans-serif;
+  }
+  .tab-add-form .confirm { background: var(--teal); color: white; }
+  .tab-add-form .cancel { background: var(--paper); color: var(--muted); border: 1px solid var(--line); }
+
+  .cobro-form {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px dashed var(--line);
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .cobro-form .field { flex: 1; min-width: 150px; }
+  .cobro-form button {
+    border: none;
+    border-radius: 7px;
+    padding: 9px 14px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: 'Poppins', sans-serif;
+  }
+  .cobro-form .confirm { background: var(--teal); color: white; }
+  .cobro-form .cancel { background: var(--paper); color: var(--muted); border: 1px solid var(--line); }
+
+  .cal-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .cal-row:last-child { border-bottom: none; }
+  .cal-row.vencido .cal-meta { color: var(--danger); }
+  .cal-empresa { font-family: 'Fraunces', serif; font-size: 14px; font-weight: 500; }
+  .cal-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .cal-amt { font-family: 'Fraunces', serif; font-size: 14px; text-align: right; flex-shrink: 0; }
+  .cal-amt .sub-label { font-size: 11px; color: var(--muted); font-family: 'Poppins', sans-serif; display: block; margin-top: 2px; }
+
+  .empty {
+    text-align: center;
+    color: var(--muted);
+    font-size: 14px;
+    padding: 30px 0;
+  }
+  .error { color: var(--danger); font-size: 12px; margin-top: 8px; display: none; }
+
+  #signin-screen {
+    min-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: 16px;
+    max-width: 420px;
+    margin: 0 auto;
+  }
+  #signin-screen h1 { margin-bottom: 0; }
+  #signin-screen p { color: var(--muted); font-size: 14px; margin: 0; }
+  .google-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: white;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 11px 22px;
+    font-size: 14px;
+    font-weight: 500;
+    font-family: 'Poppins', sans-serif;
+    cursor: pointer;
+    color: var(--ink);
+    margin-top: 8px;
+  }
+  .google-btn:hover { border-color: var(--teal); }
+  .google-btn svg { width: 18px; height: 18px; }
+  .config-warning {
+    background: var(--danger-soft);
+    color: var(--danger);
+    border-radius: 10px;
+    padding: 16px 20px;
+    font-size: 13px;
+    text-align: left;
+    line-height: 1.5;
+  }
+  .config-warning code {
+    background: rgba(0,0,0,0.06);
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-size: 12px;
+  }
+
+  .user-bar {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-bottom: 16px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .user-bar .user-name { font-weight: 500; color: var(--ink); }
+  .user-bar button {
+    background: none;
+    border: none;
+    color: var(--teal);
+    cursor: pointer;
+    font-size: 13px;
+    font-family: 'Poppins', sans-serif;
+    font-weight: 500;
+    padding: 0;
+  }
+  .sync-status { font-size: 11px; color: var(--muted); }
+  .sync-status.error { color: var(--danger); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div id="config-warning-screen" style="display:none;">
+    <div class="config-warning">
+      <strong>Falta configurar Firebase.</strong><br><br>
+      Este archivo necesita que reemplaces los datos de <code>firebaseConfig</code> en el código con los de tu propio proyecto de Firebase (gratis). Sigue la guía de configuración que te compartí junto con este archivo.
+    </div>
+  </div>
+
+  <div id="signin-screen" style="display:none;">
+    <h1>Registro de factoring</h1>
+    <p>Inicia sesión con tu cuenta de Google para acceder a tu registro. Tus datos quedan guardados en la nube y sincronizados en cualquier dispositivo donde inicies sesión.</p>
+    <button class="google-btn" id="btn-google-signin">
+      <svg viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l6-6C34.6 5.1 29.6 3 24 3 12.4 3 3 12.4 3 24s9.4 21 21 21 21-9.4 21-21c0-1.4-.1-2.7-.4-4z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 15.9 18.9 13 24 13c3.1 0 5.8 1.1 8 3l6-6C34.6 5.1 29.6 3 24 3 16.3 3 9.6 7.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 45c5.5 0 10.4-1.9 14.3-5.1l-6.6-5.4C29.6 36.2 26.9 37 24 37c-5.3 0-9.7-3.3-11.3-8l-6.6 5.1C9.5 40.6 16.2 45 24 45z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.3 4.2-4.2 5.6l6.6 5.4C40.9 36.6 44 30.9 44 24c0-1.4-.1-2.7-.4-3.5z"/></svg>
+      Iniciar sesión con Google
+    </button>
+    <div class="error" id="signin-error"></div>
+  </div>
+
+  <div id="app-content" style="display:none;">
+  <div class="user-bar">
+    <span class="sync-status" id="sync-status"></span>
+    <span class="user-name" id="user-name"></span>
+    <button id="btn-signout">Cerrar sesión</button>
+  </div>
+  <div class="header-row">
+    <div>
+      <h1>Registro de factoring</h1>
+      <p class="sub">Seguimiento de tus subastas — monto, tasa anual, IR y ganancia real vs. estimada.</p>
+      <p class="storage-note">Tus datos se guardan en la nube con tu cuenta de Google, sincronizados en cualquier dispositivo.</p>
+    </div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+      <button class="secondary" id="btn-export">Exportar a Excel (.xlsx)</button>
+      <button class="secondary" id="btn-backup">Respaldo (JSON)</button>
+      <button class="secondary" id="btn-restore">Importar respaldo</button>
+      <button class="secondary" id="btn-sheets-connect">Conectar Google Sheets</button>
+      <a id="sheets-link" href="#" target="_blank" style="display:none; font-size:13px; color:var(--teal); font-weight:500; text-decoration:none;">Abrir en Sheets ↗</a>
+      <input type="file" id="import-file-input" accept="application/json" style="display:none">
+    </div>
+  </div>
+  <div id="sheets-status" class="sync-status" style="margin-bottom:20px;"></div>
+
+
+  <div class="tab-bar-wrap">
+    <div class="tab-bar" id="tab-bar"></div>
+    <div id="tab-add-form-container"></div>
+  </div>
+
+  <div class="summary">
+    <div class="card">
+      <div class="label">Invertido histórico</div>
+      <div class="value" id="sum-total">S/ 0.00</div>
+    </div>
+    <div class="card">
+      <div class="label">Capital en curso</div>
+      <div class="value" id="sum-curso">S/ 0.00</div>
+    </div>
+    <div class="card">
+      <div class="label">Ganancia neta cobrada</div>
+      <div class="value teal" id="sum-cobrada">S/ 0.00</div>
+    </div>
+    <div class="card">
+      <div class="label">Por cobrar (cap. + gan. neta est.)</div>
+      <div class="value gold" id="sum-porcobrar">S/ 0.00</div>
+    </div>
+    <div class="card">
+      <div class="label">Ganancia estimada por cobrar (bruta)</div>
+      <div class="value gold" id="sum-ganancia-pendiente">S/ 0.00</div>
+    </div>
+    <div class="card" id="card-vencidas">
+      <div class="label">Subastas vencidas</div>
+      <div class="value" id="sum-vencidas">0</div>
+    </div>
+    <div class="card">
+      <div class="label">Rendimiento real anualizado (neto)</div>
+      <div class="value teal" id="sum-rend-real">—</div>
+    </div>
+  </div>
+
+  <div class="panel" id="calendario-panel">
+    <h2>Próximos vencimientos <span style="font-family:'Poppins',sans-serif; font-weight:400; font-size:12px; color:var(--muted);">(3 más cercanas)</span></h2>
+    <div id="calendario-list"></div>
+  </div>
+
+  <div class="panel">
+    <h2 id="form-title">Nueva subasta <span class="cancel-edit" id="cancel-edit" style="display:none">cancelar edición</span></h2>
+    <div class="form-grid">
+      <div class="field full">
+        <label>Empresa / código de subasta</label>
+        <input type="text" id="in-empresa" placeholder="PETROPERU — Nop0c3jD">
+      </div>
+      <div class="field">
+        <label id="lbl-monto">Monto invertido (S/)</label>
+        <input type="number" id="in-monto" step="0.01" placeholder="587.24">
+      </div>
+      <div class="field">
+        <label>TEA — tasa efectiva anual (%)</label>
+        <input type="number" id="in-tasa" step="0.01" placeholder="16.08">
+      </div>
+      <div class="field">
+        <label>Comisión de éxito (%)</label>
+        <input type="number" id="in-comision" step="0.01" value="10">
+        <span class="hint">% sobre la ganancia bruta</span>
+      </div>
+      <div class="field">
+        <label>IGV sobre comisión (%)</label>
+        <input type="number" id="in-igv" step="0.01" value="18">
+        <span class="hint">% sobre la comisión de éxito</span>
+      </div>
+      <div class="field">
+        <label>IR retenido (%)</label>
+        <input type="number" id="in-ir" step="0.01" value="5">
+        <span class="hint">% sobre la ganancia bruta — verifica en tu comprobante</span>
+      </div>
+      <div class="field">
+        <label>Fecha de inversión</label>
+        <input type="date" id="in-fecha-inv">
+      </div>
+      <div class="field">
+        <label>Fecha de pago estimada</label>
+        <input type="date" id="in-fecha-pago">
+      </div>
+    </div>
+    <div class="error" id="form-error">Completa empresa, monto, tasa y ambas fechas.</div>
+    <button class="primary" id="btn-add">Agregar subasta</button>
+  </div>
+
+  <div id="entries"></div>
+  </div><!-- /app-content -->
+</div>
+
+<script>
+let entries = [];       // TODAS las subastas, de todas las pestañas
+let tabs = [];          // [{id, persona, moneda}]
+let activeTabId = null;
+let editingId = null;
+let cobroFormId = null;
+let addTabFormOpen = false;
+let currentMoneda = 'PEN'; // se actualiza en cada render() según la pestaña activa
+
+function fmt(n) {
+  const symbol = currentMoneda === 'USD' ? 'US$ ' : 'S/ ';
+  return symbol + (Math.round(n * 100) / 100).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function todayStr() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function diffDays(d1, d2) {
+  const a = new Date(d1 + 'T00:00:00'), b = new Date(d2 + 'T00:00:00');
+  return Math.round((b - a) / 86400000);
+}
+
+function formatDate(d) {
+  const dt = new Date(d + 'T00:00:00');
+  return dt.toLocaleDateString('es-PE', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+// Interés compuesto: por defecto sobre base ANUAL (TEA), igual que pediste.
+// Las entradas antiguas (antes de este cambio) siguen calculándose con base MENSUAL (TEM) para no alterar su historial.
+function gananciaCompuesta(monto, tasaPct, dias, baseDias) {
+  const periodo = Math.max(dias, 1) / baseDias;
+  return monto * (Math.pow(1 + tasaPct / 100, periodo) - 1);
+}
+
+// Descuentos sobre una ganancia bruta dada:
+// - Comisión de éxito: % sobre la ganancia bruta
+// - IGV: % sobre la comisión de éxito (no sobre toda la ganancia)
+// - IR: % sobre la ganancia bruta
+function calcularDescuentos(gananciaBruta, comisionPct, igvPct, irPct) {
+  const comision = gananciaBruta * (comisionPct / 100);
+  const igv = comision * (igvPct / 100);
+  const ir = gananciaBruta * (irPct / 100);
+  const neta = gananciaBruta - comision - igv - ir;
+  return { comision, igv, ir, neta };
+}
+
+function computeEntry(e) {
+  const ir = (e.ir === undefined || e.ir === null || e.ir === '') ? 5 : e.ir;
+  const comisionPct = (e.comision === undefined || e.comision === null || e.comision === '') ? 10 : e.comision;
+  const igvPct = (e.igv === undefined || e.igv === null || e.igv === '') ? 18 : e.igv;
+  // Entradas nuevas: tasa anual (TEA). Entradas creadas antes de este cambio: se respeta su base mensual (TEM) original.
+  const unidad = e.tasaUnidad === 'TEM' ? 'TEM' : 'TEA';
+  const baseDias = unidad === 'TEM' ? 30 : 365;
+
+  const diasEst = diffDays(e.fechaInv, e.fechaPago);
+  const gananciaEstBruta = gananciaCompuesta(e.monto, e.tasa, diasEst, baseDias);
+  const descEst = calcularDescuentos(gananciaEstBruta, comisionPct, igvPct, ir);
+  const comisionEstimada = descEst.comision;
+  const igvEstimado = descEst.igv;
+  const irEstimado = descEst.ir;
+  const gananciaEstNeta = descEst.neta;
+  const rendAnualizadoEst = (gananciaEstBruta / e.monto) * (365 / Math.max(diasEst, 1)) * 100;
+
+  // Compatibilidad con entradas antiguas marcadas 'cobrado' sin fecha real
+  const fechaRealEfectiva = e.fechaRealPago || (e.estado === 'cobrado' ? e.fechaPago : null);
+
+  let real = null;
+  if (fechaRealEfectiva) {
+    const diasReal = diffDays(e.fechaInv, fechaRealEfectiva);
+    // La ganancia real la reporta la plataforma (incluye sus propios descuentos) y se registra a mano;
+    // solo si falta (entradas antiguas), se estima con la fórmula compuesta como aproximación.
+    const gananciaManual = (e.gananciaRealManual !== undefined && e.gananciaRealManual !== null && e.gananciaRealManual !== '');
+    const gananciaRealBruta = gananciaManual ? Number(e.gananciaRealManual) : gananciaCompuesta(e.monto, e.tasa, diasReal, baseDias);
+    const descReal = calcularDescuentos(gananciaRealBruta, comisionPct, igvPct, ir);
+    const comisionReal = descReal.comision;
+    const igvReal = descReal.igv;
+    const irReal = descReal.ir;
+    const gananciaRealNeta = descReal.neta;
+    const adelanto = diffDays(fechaRealEfectiva, e.fechaPago); // positivo = pagó antes
+    const diasParaTasa = Math.max(diasReal, 1);
+    const rendAnualizadoReal = (gananciaRealBruta / e.monto) * (365 / diasParaTasa) * 100;
+    // Tasa real equivalente, en la MISMA base (TEA o TEM) que la tasa ofrecida, para comparar manzanas con manzanas
+    const tasaRealEquivalente = (Math.pow(1 + gananciaRealBruta / e.monto, baseDias / diasParaTasa) - 1) * 100;
+    const diffVsEstimado = gananciaRealBruta - gananciaEstBruta;
+    real = { fechaReal: fechaRealEfectiva, diasReal, gananciaRealBruta, comisionReal, igvReal, irReal, gananciaRealNeta, adelanto, rendAnualizadoReal, tasaRealEquivalente, diffVsEstimado, esEstimacion: !gananciaManual };
+  }
+
+  const diasRestantes = diffDays(todayStr(), e.fechaPago);
+  const estado = real ? 'cobrado' : (diasRestantes < 0 ? 'vencido' : 'pendiente');
+
+  return { ir, comisionPct, igvPct, unidad, diasEst, gananciaEstBruta, comisionEstimada, igvEstimado, irEstimado, gananciaEstNeta, rendAnualizadoEst, real, diasRestantes, estado };
+}
+
+// ============================================================
+// CONFIGURACIÓN DE FIREBASE — reemplaza esto con los datos de TU proyecto
+// (Firebase Console → Configuración del proyecto → Tus apps → Config)
+// ============================================================
+const firebaseConfig = {
+  apiKey: "AIzaSyC7n_SZ9DJBFN1ZYOgK-KKWTohTDk5dg2E",
+  authDomain: "factoring-4f121.firebaseapp.com",
+  projectId: "factoring-4f121",
+  storageBucket: "factoring-4f121.firebasestorage.app",
+  messagingSenderId: "1040128967802",
+  appId: "1:1040128967802:web:50ee525e027d7c0860e7c3"
+};
+
+const FIREBASE_NOT_CONFIGURED = firebaseConfig.apiKey.startsWith('REEMPLAZA');
+
+// ============================================================
+// CONFIGURACIÓN DE GOOGLE SHEETS (opcional)
+// Client ID de OAuth (Google Cloud Console → APIs y servicios → Credenciales)
+// ============================================================
+const SHEETS_CLIENT_ID = "1040128967802-qdf3c5umsrvct8lhtsck926n1ugidg5f.apps.googleusercontent.com";
+const SHEETS_SCOPE = 'https://www.googleapis.com/auth/spreadsheets';
+const SHEETS_NOT_CONFIGURED = SHEETS_CLIENT_ID.startsWith('REEMPLAZA');
+
+let sheetsTokenClient = null;
+let sheetsAccessToken = null;
+let sheetsTokenExpiry = 0;
+let sheetId = null; // se guarda dentro del documento del usuario en Firestore una vez creado
+
+let auth = null;
+let db = null;
+let currentUser = null;
+let saveQueue = Promise.resolve(); // evita escrituras simultáneas pisándose entre sí
+
+if (!FIREBASE_NOT_CONFIGURED) {
+  firebase.initializeApp(firebaseConfig);
+  auth = firebase.auth();
+  db = firebase.firestore();
+}
+
+function setSyncStatus(text, isError) {
+  const el = document.getElementById('sync-status');
+  if (!el) return;
+  el.textContent = text;
+  el.classList.toggle('error', !!isError);
+}
+
+async function saveAll() {
+  if (!currentUser || !db) return;
+  const payload = {
+    tabs,
+    entries,
+    activeTabId,
+    sheetId: sheetId || null,
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+  };
+  // Encadena las escrituras para que no se pisen si el usuario hace varias acciones seguidas
+  saveQueue = saveQueue.then(async () => {
+    try {
+      setSyncStatus('Guardando…', false);
+      await db.collection('registros-factoring').doc(currentUser.uid).set(payload, { merge: true });
+      setSyncStatus('Guardado ✓', false);
+      if (sheetId) syncAllToSheets(); // en segundo plano, no bloquea el guardado principal
+    } catch (e) {
+      console.error('No se pudo guardar en la nube', e);
+      setSyncStatus('No se pudo guardar (revisa tu conexión)', true);
+    }
+  });
+  return saveQueue;
+}
+
+async function saveTabs() { await saveAll(); }
+async function saveEntries() { await saveAll(); }
+async function saveActiveTab() { await saveAll(); }
+
+async function loadAll() {
+  if (!currentUser || !db) return;
+  try {
+    setSyncStatus('Cargando…', false);
+    const snap = await db.collection('registros-factoring').doc(currentUser.uid).get();
+    if (snap.exists) {
+      const data = snap.data();
+      tabs = Array.isArray(data.tabs) ? data.tabs : [];
+      entries = Array.isArray(data.entries) ? data.entries : [];
+      activeTabId = (data.activeTabId && tabs.find(t => t.id === data.activeTabId)) ? data.activeTabId : (tabs[0] ? tabs[0].id : null);
+      sheetId = data.sheetId || null;
+    } else {
+      tabs = [{ id: 'default', persona: currentUser.displayName ? currentUser.displayName.split(' ')[0] : 'Mis subastas', moneda: 'PEN' }];
+      entries = [];
+      activeTabId = 'default';
+      sheetId = null;
+      await saveAll();
+    }
+    setSyncStatus('Sincronizado ✓', false);
+    updateSheetsUi();
+  } catch (e) {
+    console.error('No se pudo cargar desde la nube', e);
+    setSyncStatus('No se pudo cargar (revisa tu conexión)', true);
+    tabs = tabs.length ? tabs : [{ id: 'default', persona: 'Mis subastas', moneda: 'PEN' }];
+    entries = entries || [];
+    activeTabId = activeTabId || tabs[0].id;
+  }
+  render();
+}
+
+function sortKey(e, c) {
+  const order = { vencido: 0, pendiente: 1, cobrado: 2 };
+  return [order[c.estado], c.estado === 'cobrado' ? -diffDays('2000-01-01', c.real.fechaReal) : diffDays('2000-01-01', e.fechaPago)];
+}
+
+function renderTabBar() {
+  const bar = document.getElementById('tab-bar');
+  const tabsHtml = tabs.map(t => {
+    const label = t.persona + (t.moneda === 'USD' ? ' (US$)' : ' (S/)');
+    const isActive = t.id === activeTabId;
+    const delHtml = isActive ? `<span class="tab-del" onclick="event.stopPropagation(); deleteTab('${t.id}')" title="Eliminar pestaña">×</span>` : '';
+    return `<button class="tab-btn ${isActive ? 'active' : ''}" onclick="switchTab('${t.id}')">${label}${delHtml}</button>`;
+  }).join('');
+  bar.innerHTML = tabsHtml + `<button class="tab-add-btn" onclick="toggleAddTabForm()" title="Agregar pestaña">+</button>`;
+
+  const formContainer = document.getElementById('tab-add-form-container');
+  formContainer.innerHTML = addTabFormOpen ? `
+    <div class="tab-add-form">
+      <div class="field">
+        <label>Persona</label>
+        <input type="text" id="new-tab-persona" placeholder="Kevin">
+      </div>
+      <div class="field">
+        <label>Moneda</label>
+        <select id="new-tab-moneda">
+          <option value="PEN">Soles (S/)</option>
+          <option value="USD">Dólares (US$)</option>
+        </select>
+      </div>
+      <button class="confirm" onclick="confirmAddTab()">Crear pestaña</button>
+      <button class="cancel" onclick="cancelAddTab()">Cancelar</button>
+    </div>` : '';
+}
+
+function toggleAddTabForm() {
+  addTabFormOpen = !addTabFormOpen;
+  renderTabBar();
+  if (addTabFormOpen) {
+    setTimeout(() => document.getElementById('new-tab-persona')?.focus(), 0);
+  }
+}
+
+function cancelAddTab() {
+  addTabFormOpen = false;
+  renderTabBar();
+}
+
+async function confirmAddTab() {
+  const persona = document.getElementById('new-tab-persona').value.trim();
+  const moneda = document.getElementById('new-tab-moneda').value;
+  if (!persona) return;
+  const id = 'tab-' + Date.now().toString();
+  tabs.push({ id, persona, moneda });
+  activeTabId = id;
+  addTabFormOpen = false;
+  editingId = null;
+  cobroFormId = null;
+  await saveTabs();
+  await saveActiveTab();
+  render();
+}
+
+async function switchTab(id) {
+  if (id === activeTabId) return;
+  activeTabId = id;
+  editingId = null;
+  cobroFormId = null;
+  cancelEdit();
+  await saveActiveTab();
+  render();
+}
+
+async function deleteTab(id) {
+  if (tabs.length <= 1) {
+    alert('Debes tener al menos una pestaña.');
+    return;
+  }
+  const t = tabs.find(x => x.id === id);
+  const label = t ? `${t.persona} (${t.moneda === 'USD' ? 'US$' : 'S/'})` : 'esta pestaña';
+  const ok = window.confirm(`¿Eliminar la pestaña "${label}"? Se borrarán también todas sus subastas.`);
+  if (!ok) return;
+  tabs = tabs.filter(x => x.id !== id);
+  entries = entries.filter(x => x.tabId !== id);
+  if (activeTabId === id) activeTabId = tabs[0] ? tabs[0].id : null;
+  await saveTabs();
+  await saveEntries();
+  await saveActiveTab();
+  render();
+}
+
+function render() {
+  renderTabBar();
+
+  const currentTab = tabs.find(t => t.id === activeTabId);
+  currentMoneda = currentTab ? currentTab.moneda : 'PEN';
+  const montoLabel = document.getElementById('lbl-monto');
+  if (montoLabel) montoLabel.textContent = `Monto invertido (${currentMoneda === 'USD' ? 'US$' : 'S/'})`;
+
+  const tabEntries = entries.filter(e => e.tabId === activeTabId);
+
+  const container = document.getElementById('entries');
+  let totalHistorico = 0, capitalEnCurso = 0, gananciaCobrada = 0, porCobrar = 0, vencidas = 0;
+  let gananciaEstBrutaPendiente = 0;
+  let sumaGananciaRealNeta = 0, sumaCapitalDias = 0;
+
+  const withComputed = tabEntries.map(e => ({ e, c: computeEntry(e) }));
+
+  withComputed.forEach(({ e, c }) => {
+    totalHistorico += e.monto;
+    if (c.estado === 'cobrado') {
+      gananciaCobrada += c.real.gananciaRealNeta;
+      sumaGananciaRealNeta += c.real.gananciaRealNeta;
+      sumaCapitalDias += e.monto * (Math.max(c.real.diasReal, 1) / 365);
+    } else {
+      capitalEnCurso += e.monto;
+      porCobrar += e.monto + c.gananciaEstNeta;
+      gananciaEstBrutaPendiente += c.gananciaEstBruta;
+      if (c.estado === 'vencido') vencidas++;
+    }
+  });
+
+  const rendimientoRealPortafolio = sumaCapitalDias > 0 ? (sumaGananciaRealNeta / sumaCapitalDias) * 100 : null;
+
+  if (tabEntries.length === 0) {
+    container.innerHTML = '<div class="empty">Aún no registras ninguna subasta en esta pestaña.</div>';
+  } else {
+    const sorted = [...withComputed].sort((a, b) => {
+      const ka = sortKey(a.e, a.c), kb = sortKey(b.e, b.c);
+      if (ka[0] !== kb[0]) return ka[0] - kb[0];
+      return ka[1] - kb[1];
+    });
+
+    container.innerHTML = sorted.map(({ e, c }) => {
+      const badgeClass = c.estado === 'cobrado' ? 'collected' : (c.estado === 'vencido' ? 'overdue' : 'pending');
+      const badgeText = c.estado === 'cobrado' ? 'Cobrado' : (c.estado === 'vencido' ? 'Vencido' : 'Pendiente');
+
+      let metaLine2 = '';
+      if (c.estado === 'pendiente') {
+        metaLine2 = `<div class="entry-meta">Faltan ${c.diasRestantes} día(s)</div>`;
+      } else if (c.estado === 'vencido') {
+        metaLine2 = `<div class="entry-meta danger">Venció hace ${Math.abs(c.diasRestantes)} día(s)</div>`;
+      } else {
+        const ad = c.real.adelanto;
+        const adTxt = ad > 0 ? `pagó ${ad} día(s) antes` : (ad < 0 ? `pagó ${Math.abs(ad)} día(s) después` : 'pagó en la fecha estimada');
+        metaLine2 = `<div class="entry-meta">Cobrado ${formatDate(c.real.fechaReal)} · ${adTxt}</div>`;
+      }
+
+      const rightGain = c.estado === 'cobrado'
+        ? (() => {
+            const r = c.real;
+            const diffTxt = Math.abs(r.diffVsEstimado) < 0.01
+              ? 'igual a lo estimado'
+              : (r.diffVsEstimado < 0
+                  ? `<span style="color:var(--danger)">${fmt(Math.abs(r.diffVsEstimado))} menos</span> de lo estimado`
+                  : `<span style="color:var(--teal)">${fmt(r.diffVsEstimado)} más</span> de lo estimado`);
+            const estimNote = r.esEstimacion ? ' (calculado, sin dato manual)' : '';
+            return `<div class="entry-gain real">+${fmt(r.gananciaRealNeta)} neto</div>
+                    <div class="entry-ir">Bruta ${fmt(r.gananciaRealBruta)} · Comisión ${fmt(r.comisionReal)} · IGV ${fmt(r.igvReal)} · IR ${fmt(r.irReal)}</div>
+                    <div class="entry-ir">Tasa real anual: ${r.tasaRealEquivalente.toFixed(2)}%</div>
+                    <div class="entry-ir">${diffTxt}${estimNote}</div>`;
+          })()
+        : `<div class="entry-gain est">+${fmt(c.gananciaEstNeta)} est. neto</div>
+           <div class="entry-ir">Bruta est. ${fmt(c.gananciaEstBruta)} · Comisión ${fmt(c.comisionEstimada)} · IGV ${fmt(c.igvEstimado)} · IR ${fmt(c.irEstimado)}</div>
+           <div class="entry-ir">${c.rendAnualizadoEst.toFixed(2)}% anual est.</div>`;
+
+      const cobroBtn = c.estado === 'cobrado'
+        ? `<button class="action-btn" onclick="abrirCobroForm('${e.id}')">Editar cobro</button><button class="action-btn muted" onclick="deshacerCobro('${e.id}')">Deshacer cobro</button>`
+        : `<button class="action-btn" onclick="abrirCobroForm('${e.id}')">Marcar cobrado</button>`;
+
+      const gananciaPrefill = c.real ? c.real.gananciaRealBruta.toFixed(2) : c.gananciaEstBruta.toFixed(2);
+      const fechaPrefill = c.real ? c.real.fechaReal : todayStr();
+      const cobroFormHtml = cobroFormId === e.id ? `
+        <div class="cobro-form">
+          <div class="field">
+            <label>Fecha real de pago</label>
+            <input type="date" id="cobro-date-${e.id}" value="${fechaPrefill}">
+          </div>
+          <div class="field">
+            <label>Ganancia real recibida (bruta)</label>
+            <input type="number" step="0.01" id="cobro-ganancia-${e.id}" value="${gananciaPrefill}">
+            <span class="hint">La que informa la plataforma, no la calculada</span>
+          </div>
+          <button class="confirm" onclick="confirmarCobro('${e.id}')">Confirmar</button>
+          <button class="cancel" onclick="cancelarCobro()">Cancelar</button>
+        </div>` : '';
+
+      return `
+        <div class="entry ${c.estado === 'vencido' ? 'vencido' : ''}">
+          <div class="entry-top">
+            <div>
+              <div class="entry-name">${e.empresa}</div>
+              <div class="entry-meta">${e.tasa}% ${c.unidad} · plazo ${c.diasEst} días · vence ${formatDate(e.fechaPago)}</div>
+              ${metaLine2}
+              <span class="badge ${badgeClass}">${badgeText}</span>
+            </div>
+            <div class="entry-right">
+              <div class="entry-amt">${fmt(e.monto)}</div>
+              ${rightGain}
+            </div>
+          </div>
+          <div class="actions">
+            ${cobroBtn}
+            <button class="action-btn muted" onclick="editEntry('${e.id}')">Editar</button>
+            <button class="action-btn del" onclick="deleteEntry('${e.id}')">Eliminar</button>
+          </div>
+          ${cobroFormHtml}
+        </div>
+      `;
+    }).join('');
+  }
+
+  document.getElementById('sum-total').textContent = fmt(totalHistorico);
+  document.getElementById('sum-curso').textContent = fmt(capitalEnCurso);
+  document.getElementById('sum-cobrada').textContent = fmt(gananciaCobrada);
+  document.getElementById('sum-porcobrar').textContent = fmt(porCobrar);
+  document.getElementById('sum-ganancia-pendiente').textContent = fmt(gananciaEstBrutaPendiente);
+  document.getElementById('sum-vencidas').textContent = vencidas;
+  document.getElementById('sum-rend-real').textContent = rendimientoRealPortafolio === null ? '—' : rendimientoRealPortafolio.toFixed(2) + '%';
+  const vencidasCard = document.getElementById('card-vencidas');
+  const vencidasVal = document.getElementById('sum-vencidas');
+  if (vencidas > 0) {
+    vencidasCard.classList.add('alert');
+    vencidasVal.classList.add('danger');
+  } else {
+    vencidasCard.classList.remove('alert');
+    vencidasVal.classList.remove('danger');
+  }
+
+  renderCalendario(withComputed);
+}
+
+function renderCalendario(withComputed) {
+  const calList = document.getElementById('calendario-list');
+  const pendientes = withComputed
+    .filter(({ c }) => c.estado !== 'cobrado')
+    .sort((a, b) => diffDays(a.e.fechaPago, b.e.fechaPago))
+    .slice(0, 3);
+
+  if (pendientes.length === 0) {
+    calList.innerHTML = '<div class="empty">No tienes vencimientos pendientes.</div>';
+    return;
+  }
+
+  calList.innerHTML = pendientes.map(({ e, c }) => {
+    const esVencido = c.estado === 'vencido';
+    const metaTxt = esVencido
+      ? `Venció hace ${Math.abs(c.diasRestantes)} día(s)`
+      : `Faltan ${c.diasRestantes} día(s)`;
+    const montoEsperado = e.monto + c.gananciaEstNeta;
+    return `
+      <div class="cal-row ${esVencido ? 'vencido' : ''}">
+        <div>
+          <div class="cal-empresa">${e.empresa}</div>
+          <div class="cal-meta">${formatDate(e.fechaPago)} · ${metaTxt}</div>
+        </div>
+        <div class="cal-amt">
+          ${fmt(montoEsperado)}
+          <span class="sub-label">cap. + ganancia neta est.</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function readForm() {
+  return {
+    empresa: document.getElementById('in-empresa').value.trim(),
+    monto: parseFloat(document.getElementById('in-monto').value),
+    tasa: parseFloat(document.getElementById('in-tasa').value),
+    comision: document.getElementById('in-comision').value === '' ? 10 : parseFloat(document.getElementById('in-comision').value),
+    igv: document.getElementById('in-igv').value === '' ? 18 : parseFloat(document.getElementById('in-igv').value),
+    ir: document.getElementById('in-ir').value === '' ? 5 : parseFloat(document.getElementById('in-ir').value),
+    fechaInv: document.getElementById('in-fecha-inv').value,
+    fechaPago: document.getElementById('in-fecha-pago').value,
+  };
+}
+
+function clearForm() {
+  document.getElementById('in-empresa').value = '';
+  document.getElementById('in-monto').value = '';
+  document.getElementById('in-tasa').value = '';
+  document.getElementById('in-comision').value = '10';
+  document.getElementById('in-igv').value = '18';
+  document.getElementById('in-ir').value = '5';
+  document.getElementById('in-fecha-inv').value = '';
+  document.getElementById('in-fecha-pago').value = '';
+}
+
+async function addEntry() {
+  const data = readForm();
+  const errorEl = document.getElementById('form-error');
+
+  if (!activeTabId) {
+    errorEl.textContent = 'Crea o selecciona una pestaña antes de agregar una subasta.';
+    errorEl.style.display = 'block';
+    return;
+  }
+  if (!data.empresa || isNaN(data.monto) || isNaN(data.tasa) || !data.fechaInv || !data.fechaPago) {
+    errorEl.textContent = 'Completa empresa, monto, tasa y ambas fechas.';
+    errorEl.style.display = 'block';
+    return;
+  }
+  if (data.fechaPago <= data.fechaInv) {
+    errorEl.textContent = 'La fecha de pago estimada debe ser posterior a la fecha de inversión.';
+    errorEl.style.display = 'block';
+    return;
+  }
+  errorEl.style.display = 'none';
+
+  if (editingId) {
+    const idx = entries.findIndex(x => x.id === editingId);
+    if (idx !== -1) {
+      entries[idx] = { ...entries[idx], ...data };
+    }
+    editingId = null;
+    document.getElementById('form-title').firstChild.textContent = 'Nueva subasta ';
+    document.getElementById('cancel-edit').style.display = 'none';
+    document.getElementById('btn-add').textContent = 'Agregar subasta';
+  } else {
+    entries.push({ id: Date.now().toString(), ...data, tasaUnidad: 'TEA', tabId: activeTabId, fechaRealPago: null });
+    // (comision e igv ya quedan guardados porque vienen incluidos en `data`)
+  }
+
+  await saveEntries();
+  render();
+  clearForm();
+}
+
+function editEntry(id) {
+  const e = entries.find(x => x.id === id);
+  if (!e) return;
+  editingId = id;
+  document.getElementById('in-empresa').value = e.empresa;
+  document.getElementById('in-monto').value = e.monto;
+  document.getElementById('in-tasa').value = e.tasa;
+  document.getElementById('in-comision').value = (e.comision === undefined || e.comision === null) ? 10 : e.comision;
+  document.getElementById('in-igv').value = (e.igv === undefined || e.igv === null) ? 18 : e.igv;
+  document.getElementById('in-ir').value = (e.ir === undefined || e.ir === null) ? 5 : e.ir;
+  document.getElementById('in-fecha-inv').value = e.fechaInv;
+  document.getElementById('in-fecha-pago').value = e.fechaPago;
+  document.getElementById('form-title').firstChild.textContent = 'Editar subasta ';
+  document.getElementById('cancel-edit').style.display = 'inline';
+  document.getElementById('btn-add').textContent = 'Guardar cambios';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function cancelEdit() {
+  editingId = null;
+  clearForm();
+  document.getElementById('form-title').firstChild.textContent = 'Nueva subasta ';
+  document.getElementById('cancel-edit').style.display = 'none';
+  document.getElementById('btn-add').textContent = 'Agregar subasta';
+}
+
+function abrirCobroForm(id) {
+  cobroFormId = id;
+  render();
+}
+
+function cancelarCobro() {
+  cobroFormId = null;
+  render();
+}
+
+async function confirmarCobro(id) {
+  const dateInput = document.getElementById('cobro-date-' + id);
+  const gananciaInput = document.getElementById('cobro-ganancia-' + id);
+  const fecha = dateInput ? dateInput.value : todayStr();
+  const ganancia = gananciaInput ? parseFloat(gananciaInput.value) : NaN;
+  const e = entries.find(x => x.id === id);
+  if (e) {
+    e.fechaRealPago = fecha || todayStr();
+    e.gananciaRealManual = isNaN(ganancia) ? null : ganancia;
+    e.estado = 'cobrado';
+  }
+  cobroFormId = null;
+  await saveEntries();
+  render();
+}
+
+async function deshacerCobro(id) {
+  const e = entries.find(x => x.id === id);
+  if (e) {
+    e.fechaRealPago = null;
+    e.gananciaRealManual = null;
+    e.estado = 'pendiente';
+    await saveEntries();
+    render();
+  }
+}
+
+async function deleteEntry(id) {
+  entries = entries.filter(x => x.id !== id);
+  if (editingId === id) cancelEdit();
+  await saveEntries();
+  render();
+}
+
+function buildRows(tabEntries) {
+  return tabEntries.map(e => {
+    const c = computeEntry(e);
+    return {
+      'Empresa': e.empresa,
+      'Monto invertido': e.monto,
+      'Tasa (%)': e.tasa,
+      'Unidad de tasa': c.unidad,
+      'Comisión de éxito (%)': c.comisionPct,
+      'IGV sobre comisión (%)': c.igvPct,
+      'IR (%)': c.ir,
+      'Fecha inversión': e.fechaInv,
+      'Fecha pago estimada': e.fechaPago,
+      'Días plazo estimado': c.diasEst,
+      'Ganancia estimada bruta': Number(c.gananciaEstBruta.toFixed(2)),
+      'Comisión estimada': Number(c.comisionEstimada.toFixed(2)),
+      'IGV estimado': Number(c.igvEstimado.toFixed(2)),
+      'IR estimado': Number(c.irEstimado.toFixed(2)),
+      'Ganancia estimada neta': Number(c.gananciaEstNeta.toFixed(2)),
+      '% anualizado estimado': Number(c.rendAnualizadoEst.toFixed(2)),
+      'Fecha real de pago': c.real ? c.real.fechaReal : '',
+      'Días reales': c.real ? c.real.diasReal : '',
+      'Ganancia real bruta': c.real ? Number(c.real.gananciaRealBruta.toFixed(2)) : '',
+      'Comisión real': c.real ? Number(c.real.comisionReal.toFixed(2)) : '',
+      'IGV real': c.real ? Number(c.real.igvReal.toFixed(2)) : '',
+      'IR real': c.real ? Number(c.real.irReal.toFixed(2)) : '',
+      'Ganancia real neta': c.real ? Number(c.real.gananciaRealNeta.toFixed(2)) : '',
+      'Tasa real equivalente (%)': c.real ? Number(c.real.tasaRealEquivalente.toFixed(2)) : '',
+      '% anualizado real': c.real ? Number(c.real.rendAnualizadoReal.toFixed(2)) : '',
+      'Diferencia vs. estimado': c.real ? Number(c.real.diffVsEstimado.toFixed(2)) : '',
+      'Días de adelanto (+antes / -después)': c.real ? c.real.adelanto : '',
+      'Estado': c.estado === 'cobrado' ? 'Cobrado' : (c.estado === 'vencido' ? 'Vencido' : 'Pendiente'),
+    };
+  });
+}
+
+function sanitizeSheetName(name, used) {
+  let clean = name.replace(/[\\\/\?\*\[\]:]/g, '').trim().slice(0, 31) || 'Hoja';
+  let unique = clean, i = 1;
+  while (used.has(unique)) {
+    const suffix = '_' + i;
+    unique = clean.slice(0, 31 - suffix.length) + suffix;
+    i++;
+  }
+  used.add(unique);
+  return unique;
+}
+
+// ============================================================
+// GOOGLE SHEETS — sincronización en segundo plano
+// ============================================================
+function setSheetsStatus(text, isError) {
+  const el = document.getElementById('sheets-status');
+  if (!el) return;
+  el.textContent = text;
+  el.classList.toggle('error', !!isError);
+}
+
+function updateSheetsUi() {
+  const link = document.getElementById('sheets-link');
+  if (!link) return;
+  if (sheetId) {
+    link.style.display = 'inline';
+    link.href = `https://docs.google.com/spreadsheets/d/${sheetId}/edit`;
+    setSheetsStatus('Conectado a Google Sheets', false);
+  } else {
+    link.style.display = 'none';
+  }
+}
+
+function initSheetsClient() {
+  if (sheetsTokenClient) return true;
+  if (typeof google === 'undefined' || !google.accounts || !google.accounts.oauth2) return false;
+  sheetsTokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: SHEETS_CLIENT_ID,
+    scope: SHEETS_SCOPE,
+    callback: () => {}, // se sobreescribe en cada solicitud
+  });
+  return true;
+}
+
+function requestSheetsToken(promptType) {
+  return new Promise((resolve) => {
+    if (!initSheetsClient()) { resolve(false); return; }
+    sheetsTokenClient.callback = (resp) => {
+      if (resp.error) { resolve(false); return; }
+      sheetsAccessToken = resp.access_token;
+      sheetsTokenExpiry = Date.now() + (resp.expires_in * 1000);
+      resolve(true);
+    };
+    sheetsTokenClient.error_callback = () => resolve(false);
+    try {
+      sheetsTokenClient.requestAccessToken({ prompt: promptType });
+    } catch (e) {
+      resolve(false);
+    }
+  });
+}
+
+// allowPrompt=false (uso automático, ej. al agregar una subasta): NUNCA muestra selector de cuenta.
+// Si el token venció, simplemente no sincroniza esta vez y avisa en el texto de estado, sin interrumpir.
+// allowPrompt=true (solo cuando el usuario hace clic en "Conectar Google Sheets"): sí puede pedir cuenta/consentimiento.
+async function ensureSheetsToken(allowPrompt) {
+  if (sheetsAccessToken && Date.now() < sheetsTokenExpiry - 60000) return true;
+  if (!allowPrompt) return false;
+  return await requestSheetsToken('');
+}
+
+async function connectGoogleSheets() {
+  if (SHEETS_NOT_CONFIGURED) {
+    alert('Falta configurar el Client ID de Google Sheets en el código. Revisa la guía de configuración.');
+    return;
+  }
+  setSheetsStatus('Conectando…', false);
+  const ok = await requestSheetsToken('consent');
+  if (!ok) {
+    setSheetsStatus('No se pudo conectar con Google Sheets.', true);
+    return;
+  }
+  try {
+    if (!sheetId) {
+      await createSpreadsheet();
+      await saveAll(); // esto ya dispara la primera sincronización en segundo plano
+    } else {
+      await syncAllToSheets(); // ya existía la hoja (ej. reconexión) — sincroniza ahora mismo
+    }
+    updateSheetsUi();
+  } catch (e) {
+    console.error(e);
+    setSheetsStatus('Se conectó, pero falló la primera sincronización.', true);
+  }
+}
+
+async function createSpreadsheet() {
+  const res = await fetch('https://sheets.googleapis.com/v4/spreadsheets', {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + sheetsAccessToken, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ properties: { title: 'Registro de Factoring' } }),
+  });
+  if (!res.ok) throw new Error('No se pudo crear la hoja de cálculo');
+  const data = await res.json();
+  sheetId = data.spreadsheetId;
+}
+
+async function ensureSheetTabExists(title) {
+  const metaRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}?fields=sheets.properties.title`, {
+    headers: { 'Authorization': 'Bearer ' + sheetsAccessToken },
+  });
+  if (!metaRes.ok) throw new Error('No se pudo leer la hoja de cálculo');
+  const meta = await metaRes.json();
+  const exists = (meta.sheets || []).some(s => s.properties.title === title);
+  if (!exists) {
+    await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}:batchUpdate`, {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + sheetsAccessToken, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requests: [{ addSheet: { properties: { title } } }] }),
+    });
+  }
+}
+
+async function syncTabToSheet(t) {
+  const title = sanitizeSheetName(`${t.persona}${t.moneda === 'USD' ? ' USD' : ''}`, new Set());
+  await ensureSheetTabExists(title);
+
+  const tabEntries = entries.filter(e => e.tabId === t.id);
+  const rows = buildRows(tabEntries);
+  const headers = rows.length ? Object.keys(rows[0]) : ['Sin subastas registradas'];
+  const values = rows.length ? [headers, ...rows.map(r => headers.map(h => r[h]))] : [headers];
+
+  // Limpia el rango antes de reescribir, para que no queden filas viejas si se eliminó alguna subasta
+  await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(title + '!A1:Z10000')}:clear`, {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + sheetsAccessToken },
+  });
+
+  await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(title + '!A1')}?valueInputOption=RAW`, {
+    method: 'PUT',
+    headers: { 'Authorization': 'Bearer ' + sheetsAccessToken, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ values }),
+  });
+}
+
+async function syncAllToSheets() {
+  if (!sheetId) return;
+  // Sincronización automática (ej. al agregar una subasta): nunca interrumpe con un selector de cuenta.
+  const ok = await ensureSheetsToken(false);
+  if (!ok) {
+    setSheetsStatus('Sesión de Sheets vencida — haz clic en "Conectar Google Sheets" para reanudar la sincronización (tus datos ya están guardados igual).', true);
+    return;
+  }
+  try {
+    setSheetsStatus('Sincronizando con Sheets…', false);
+    for (const t of tabs) {
+      await syncTabToSheet(t);
+    }
+    setSheetsStatus('Sincronizado con Google Sheets ✓', false);
+  } catch (e) {
+    console.error(e);
+    setSheetsStatus('Error al sincronizar con Sheets', true);
+  }
+}
+
+function exportToExcel() {
+  if (typeof XLSX === 'undefined') {
+    alert('No se pudo cargar la librería de Excel. Verifica tu conexión a internet e intenta de nuevo.');
+    return;
+  }
+
+  const tabsConEntries = tabs.filter(t => entries.some(e => e.tabId === t.id));
+  if (tabsConEntries.length === 0) {
+    alert('Aún no hay subastas registradas para exportar.');
+    return;
+  }
+
+  const wb = XLSX.utils.book_new();
+  const usedNames = new Set();
+
+  tabsConEntries.forEach(t => {
+    const tabEntries = entries.filter(e => e.tabId === t.id);
+    const rows = buildRows(tabEntries);
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws['!cols'] = Object.keys(rows[0]).map(k => ({ wch: Math.max(k.length, 16) }));
+    const sheetLabel = `${t.persona}${t.moneda === 'USD' ? ' USD' : ''}`;
+    const sheetName = sanitizeSheetName(sheetLabel, usedNames);
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  });
+
+  XLSX.writeFile(wb, `registro-factoring-${todayStr()}.xlsx`);
+}
+
+function exportBackup() {
+  const data = { tabs, entries, exportedAt: new Date().toISOString(), version: 2 };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `respaldo-factoring-${todayStr()}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function triggerImport() {
+  document.getElementById('import-file-input').click();
+}
+
+async function handleImportFile(evt) {
+  const file = evt.target.files[0];
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const data = JSON.parse(text);
+    if (!Array.isArray(data.tabs) || !Array.isArray(data.entries)) throw new Error('Formato inválido');
+
+    const ok = window.confirm('Esto reemplazará todos los datos actuales guardados en tu cuenta por los del respaldo. ¿Continuar?');
+    if (!ok) { evt.target.value = ''; return; }
+
+    tabs = data.tabs;
+    entries = data.entries;
+    editingId = null;
+    cobroFormId = null;
+    activeTabId = tabs[0] ? tabs[0].id : null;
+    await saveAll();
+    render();
+    alert('Respaldo importado correctamente.');
+  } catch (e) {
+    alert('No se pudo leer el archivo. Verifica que sea un respaldo JSON exportado desde esta misma herramienta.');
+  } finally {
+    evt.target.value = '';
+  }
+}
+
+document.getElementById('btn-add').addEventListener('click', addEntry);
+document.getElementById('cancel-edit').addEventListener('click', cancelEdit);
+document.getElementById('btn-export').addEventListener('click', exportToExcel);
+document.getElementById('btn-backup').addEventListener('click', exportBackup);
+document.getElementById('btn-restore').addEventListener('click', triggerImport);
+document.getElementById('import-file-input').addEventListener('change', handleImportFile);
+document.getElementById('btn-sheets-connect').addEventListener('click', connectGoogleSheets);
+
+// ============================================================
+// AUTENTICACIÓN CON GOOGLE
+// ============================================================
+function showScreen(name) {
+  document.getElementById('config-warning-screen').style.display = name === 'config' ? 'block' : 'none';
+  document.getElementById('signin-screen').style.display = name === 'signin' ? 'flex' : 'none';
+  document.getElementById('app-content').style.display = name === 'app' ? 'block' : 'none';
+}
+
+async function handleSignIn() {
+  const errorEl = document.getElementById('signin-error');
+  errorEl.style.display = 'none';
+  try {
+    const provider = new firebase.auth.GoogleAuthProvider();
+    await auth.signInWithPopup(provider);
+  } catch (e) {
+    console.error(e);
+    errorEl.textContent = 'No se pudo iniciar sesión: ' + (e.message || 'intenta de nuevo.');
+    errorEl.style.display = 'block';
+  }
+}
+
+async function handleSignOut() {
+  try { await auth.signOut(); } catch (e) { console.error(e); }
+}
+
+function initAuth() {
+  if (FIREBASE_NOT_CONFIGURED) {
+    showScreen('config');
+    return;
+  }
+
+  document.getElementById('btn-google-signin').addEventListener('click', handleSignIn);
+  document.getElementById('btn-signout').addEventListener('click', handleSignOut);
+
+  auth.onAuthStateChanged(async (user) => {
+    if (user) {
+      currentUser = user;
+      document.getElementById('user-name').textContent = user.displayName || user.email || '';
+      await loadAll();
+      showScreen('app');
+    } else {
+      currentUser = null;
+      showScreen('signin');
+    }
+  });
+}
+
+initAuth();
+</script>
+</body>
+</html>
